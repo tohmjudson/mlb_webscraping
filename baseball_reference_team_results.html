@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <title>MLB Webscraping with Python and D3</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <script src="https://d3js.org/d3.v4.js"></script>
+
+    <style> /* Local CSS for D3 only */
+        body{
+            font-weight: 300;
+            overflow: hidden;
+        }
+        a {
+            color: #ff5910;
+        }
+        .headline{
+            display: inline;
+        }
+
+        .line {
+            fill: none;
+            stroke-width: 1;
+        }
+
+        .select-style {
+            padding: 0;
+            margin: 0;
+            border-bottom: 1px solid #ccc;
+            width: 74px;
+            border-radius: 3px;
+            overflow: hidden;
+            background-color: #fff;
+            background: #fff url("images/arrowdown.gif") no-repeat 90% 50%;
+        }
+
+        .select-style select {
+            padding: 5px 8px;
+            font-size: 16px;
+            border: none;
+            box-shadow: none;
+            background-color: transparent;
+            background-image: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+                appearance: none;
+        }
+
+        .select-style select:focus {
+            outline: none;
+        }
+
+        .row {
+            display: table;
+        }
+        .column {
+            display: table-cell;
+        }
+
+    </style>
+</head>
+
+<body>
+    <a href="http://tohmjudson.com/">Back</a>
+
+    <br/>
+
+    <div>
+        <h2 class="headline"></h2>
+        <span class="introduction"></span>
+    </div>
+
+    <div style="float: left;width:220px">
+        <div class="row">
+            <span class="column">Select Year:</span>
+            <div class="select-style column">
+                <select id="yearFilter">
+                    <option value ="NYM1986.csv" selected>1986</option>
+                    <option value ="NYM2000.csv">2000</option>
+                    <option value ="NYM2016.csv">2016</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="row">
+            <span class="column">Filter Opponent:</span>
+            <div class="column select-style">
+                <select id="teamFilter">
+                </select>
+            </div>
+        </div>
+    </div>
+    
+    <div>
+        <div style="padding-top:6px;">
+            <span>Opponent:</span>
+            <span class="opponent"></span>
+        </div>
+        <div style="padding-top:11px;">
+            <span>Score:</span>
+            <span class="score"></span>
+        </div>
+    </div>
+
+    <div class="chart" style="margin-top: 32px;"></div>
+
+    <div>
+        <span class="source-bold"></span>
+        <span class="source"></span>
+    </div>
+
+<script type="text/javascript">
+
+    var margin = {top: 20, right: 100, bottom: 60, left: 50};
+    var windowWidth = window.innerWidth;
+    var windowHeight = window.innerHeight;
+    var width = windowWidth - margin.left - margin.right;
+    var height = windowHeight - margin.top - margin.bottom - 200;
+
+    // set the ranges
+    var x = d3.scaleBand()
+            .range([0, width])
+            .padding(0.1);
+    var y = d3.scaleLinear()
+            .range([height, 0]);
+
+    var y1 = d3.scaleLinear()
+            .range([height, 0]);
+    
+    var yearDropdown = d3.select("#yearFilter");
+
+    var dropDown = d3.select("#teamFilter")
+            .attr("name", "team-list");
+
+
+    var svg = d3.select(".chart").append("svg")
+            .attr("width", width + margin.left + margin.right)
+            .attr("height", height + margin.top + margin.bottom)
+            .append("g")
+            .attr("transform",
+                    "translate(" + margin.left + "," + margin.top + ")");
+    var record = '';
+
+    var change = function(){
+
+        svg.selectAll("*").remove();
+
+        var source = yearDropdown.node().options[yearDropdown.node().selectedIndex].value;
+        document.getElementById("teamFilter").innerHTML = "";
+
+        d3.csv(source, function(error, data) {
+            if (error) throw error;
+            record = data[data.length-1]['W-L'];
+
+            console.log(data);
+            
+            data.forEach(function(d) {
+                d.R = +d.R;
+                d.RA = +d.RA;
+
+                console.log(d[' ']);
+
+                var init = d.GB
+                var sliced = init.slice(0,2)
+
+                // need spaces for proper formatting
+                if(d.GB === "  Tied"){
+                    d.GB = 0
+                }
+                
+                else if(d.GB === ""){
+                    d.GB = null;
+                }   
+
+                // check if it it should be positive
+                else if(sliced === "up"){
+                    var test = init.substring(2);
+                    d.GB = test; 
+
+                }
+                // convert positive to negative games
+                else{
+                    d.GB = -Math.abs(d.GB)
+                }
+
+            });
+
+            // Scale the range of the data in the domains
+            x.domain(data.map(function(d) { return d.Date; }));
+            //y.domain([0, d3.max(data, function(d) { return d.R; })]);
+            y.domain([-20, 20]);
+            // Right Axis
+            y1.domain([d3.min(data, function(d) { return d.GB; }), d3.max(data, function(d) { return d.GB; })]);
+
+            // append the rectangles for the bar chart
+            svg.selectAll(".barFor")
+                    .data(data)
+                    .enter().append("rect")
+                    .attr("class", "barFor")
+                    .attr("x", function(d) { return x(d.Date); })
+                    .attr("width", x.bandwidth())
+                    .attr("y", function(d) { return y(d.R); })
+                    .attr("height", function(d) { return height/2 - y(d.R); })
+                    .attr("fill", "#ff5910")
+                    .on("mouseover", function(d){
+                        d3.select(".score").text(d.R +"-"+ d.RA);
+                        d3.select(".opponent").text(d.at + d.Opp);
+                    });
+
+
+            // append the rectangles for the bar chart
+            svg.selectAll(".barAgainst")
+                    .data(data)
+                    .enter().append("rect")
+                    .attr("class", "barAgainst")
+                    .attr("x", function(d) { return x(d.Date); })
+                    .attr("width", x.bandwidth())
+                    .attr("y", function(d) {  return y(Math.min(0,d.RA)); })
+                    .attr("height", function(d) { return height/2 - y(d.RA); })
+                    .attr("fill", "#002d72")
+                    .on("mouseover", function(d){
+                        d3.select(".score").text(d.R +"-"+ d.RA);
+                        d3.select(".opponent").text(d.at + d.Opp);
+                    });
+
+            // line
+            var line = d3.line()
+                    .defined(function(d) { return d; })
+                    .x(function(d) { return x(d.Date) + x.bandwidth()/2; })
+                    .y(function(d) { if(d.GB != null) return y1(d.GB); });
+
+            svg.append("path")
+                    .data(data)
+                    .attr("class", "line")
+                    .attr("d", line(data));
+
+
+            // add the y Axis Left
+            svg.append("g")
+                    .attr("class", "axisLeft")
+                    .call(d3.axisLeft(y).tickFormat( function(d){return (Math.abs(d))}));
+
+            // text label for the y Left axis
+            svg.append("text")
+                    .attr("class", "axisLeftLabel axisL")
+                    .attr("transform", "rotate(-90)")
+                    .attr("y",0 - margin.left)
+                    .attr("x",-height/2)
+                    .attr("dy", "1em")
+                    .style("text-anchor", "middle")
+                    .text("Runs");
+
+            // add the y Axis Right
+            svg.append("g")
+                    .attr("class", "axisRight")
+                    .attr("transform", "translate(" + width + " ,0)")
+                    .call(d3.axisRight(y1));
+
+            // text label for the y Right axis
+            svg.append("text")
+                    .attr("class", "axisRightLabel")
+                    .attr("transform", "rotate(90)")
+                    .attr("y", -width - margin.left)
+                    .attr("x", height/2)
+                    .attr("dy", "1em")
+                    .style("text-anchor", "middle")
+                    .text("Standings");
+
+            // Add the Standings line legend to show or hide
+            svg.append("text")
+                    .attr("x", 10)
+                    .attr("y", 0)
+                    .attr("class", "legend")
+                    .on("click", function(){
+                        // determine if current line is visible
+                        var active = line.active ? false : true;
+                        var newOpacity = active ? 0 : 1;
+                        // hide or show the elements
+                        d3.select(".line").style("opacity", newOpacity);
+                        d3.select(".axisRight").style("opacity", newOpacity);
+                        d3.select(".axisRightLabel").style("opacity", newOpacity);
+                        // update whether or not the elements are active
+                        line.active = active;
+                    })
+                    .text("Show/Hide Standings");
+
+
+            // FILTERING
+
+            var options = dropDown.selectAll("option")
+                    // Unique keys for dropdown
+                    .data(d3.map(data, function(d){return d.Opp;}).keys())
+                    .enter()
+                    .append("option");
+
+            options.text(function (d) {return d;})
+                    .attr("value", function (d) { return d; });
+
+            dropDown.append("option").text("ALL").attr("value", "All");
+
+            // Select only the bars you wish to see, dim others
+            dropDown.on("change", function() {
+                var selected = this.value;
+                var opacityOthers = this.checked ? "1.0" : ".2";
+                var opacity = this.checked ? ".2" : "1.0";
+                //console.log(selected);
+
+                if(selected == 'All'){
+                    svg.selectAll(".barFor")
+                            .attr("opacity", opacity);
+                    svg.selectAll(".barAgainst")
+                            .attr("opacity", opacity);
+                }
+                else{
+                    svg.selectAll(".barFor")
+                            .filter(function(d) {return selected != d.Opp;})
+                            .attr("opacity", opacityOthers);
+
+                    svg.selectAll(".barAgainst")
+                            .filter(function(d) {return selected != d.Opp;})
+                            .attr("opacity", opacityOthers);
+
+                    svg.selectAll(".barFor")
+                            .filter(function(d) {return selected == d.Opp;})
+                            .attr("opacity", opacity);
+
+                    svg.selectAll(".barAgainst")
+                            .filter(function(d) {return selected == d.Opp;})
+                            .attr("opacity", opacity);
+                }
+
+
+            });
+
+
+
+            //RESPONSIVENESS
+            d3.select(window).on("resize", resized);
+
+            function resized() {
+
+                //new margin
+                var newMargin = {top: 20, right: 150, bottom: 60, left: 50};
+
+                //Get the width of the window
+                var w = window.innerWidth;
+
+                //Change the width of the svg
+                d3.select("svg")
+                        .attr("width", w);
+
+                //Change the xScale
+                x.range([0, w - newMargin.right]);
+
+                //Update the bars
+                svg.selectAll("rect")
+                        .attr("x", function(d) { return x(d.Date); })
+                        .attr("width", x.bandwidth());
+
+                // Update the line
+                svg.selectAll('.line')
+                        .attr("d", function(d) { return line(data); });
+
+                // Update the Right Axis
+                svg.select('.axisRight')
+                        .attr("transform", "translate(" + parseInt(w-newMargin.right) + " ,0)");
+
+                svg.select('.axisRightLabel')
+                        .attr("y", -w + newMargin.left*2)
+                        .attr("x", height/2)
+
+
+
+            }
+
+        });
+
+    }
+
+    //Appends chart text to html
+    d3.select(".headline").text("New York Mets Schedule and Results");
+    d3.select(".introduction").text(record);
+    d3.select(".source-bold").text("SOURCE: ");
+    d3.select(".source")
+            .append("a")
+            .attr("href", "http://www.baseball-reference.com/teams/NYM/")
+            .html("Baseball Reference");
+
+
+    yearDropdown.on("change", change);
+    change(); //trigger csv on load
+
+
+</script>
+
+</body>
+</html>
